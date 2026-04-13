@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── ENUMS ──────────────────────────────────────
+
+enum Role {
+  ADMIN
+  TEACHER
+  STAFF
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum StudentStatus {
+  PENDING
+  FEE_PENDING
+  ENROLLED
+  ALLOCATED
+  ADMITTED
+  COMPLETED
+  WITHDRAWN
+}
+
+enum FeeStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ExamStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  LEAVE
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  SYSTEM
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum ResultStatus {
+  PASS
+  FAIL
+}
+
+// ─── MODELS ─────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  username  String   @unique
+  email     String?  @unique
+  password  String
+  role      Role     @default(ADMIN)
+  requiresPasswordChange Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model Student {
+  id              String        @id @default(cuid())
+  grNo            String        @unique @map("gr_no")
+  firstName       String        @map("first_name")
+  lastName        String        @map("last_name")
+  fatherName      String        @map("father_name")
+  fatherCnic      String?       @map("father_cnic")
+  bformNo         String?       @map("bform_no")
+  email           String?
+  phone           String?
+  dateOfBirth     DateTime?     @map("date_of_birth")
+  gender          Gender?
+  religion        String?
+  caste           String?
+  address         String?
+  identificationMark String?    @map("identification_mark")
+  photoUrl        String?       @map("photo_url")
+  cnicDocUrl      String?       @map("cnic_doc_url")
+  certificateDocUrl String?     @map("certificate_doc_url")
+  status          StudentStatus @default(PENDING)
+  admissionDate   DateTime?     @map("admission_date")
+  classId         String?       @map("class_id")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  class           Class?        @relation(fields: [classId], references: [id])
+  feeChallan      FeeChallan[]
+  seatAllocation  SeatAllocation?
+  admitCard       AdmitCard?
+  examResults     ExamResult[]
+  attendance      Attendance[]
+  notifications   Notification[]
+
+  @@index([grNo])
+  @@index([bformNo])
+  @@index([classId])
+  @@index([status])
+  @@map("students")
+}
+
+model Class {
+  id            String   @id @default(cuid())
+  name          String
+  section       String?
+  totalSeats    Int      @default(40) @map("total_seats")
+  occupiedSeats Int      @default(0) @map("occupied_seats")
+  academicYear  String   @default("2025-26") @map("academic_year")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  students       Student[]
+  seatAllocations SeatAllocation[]
+  classSubjects  ClassSubject[]
+
+  @@unique([name, section, academicYear])
+  @@map("classes")
+}
+
+model Subject {
+  id           String   @id @default(cuid())
+  name         String
+  code         String   @unique
+  totalMarks   Int      @default(100) @map("total_marks")
+  passingMarks Int      @default(33) @map("passing_marks")
+  createdAt    DateTime @default(now())
+
+  classSubjects ClassSubject[]
+  examResults   ExamResult[]
+
+  @@map("subjects")
+}
+
+model ClassSubject {
+  classId   String @map("class_id")
+  subjectId String @map("subject_id")
+
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([classId, subjectId])
+  @@map("class_subjects")
+}
+
+model FeeChallan {
+  id         String    @id @default(cuid())
+  studentId  String    @map("student_id")
+  challanNo  String    @unique @map("challan_no")
+  amount     Float
+  issueDate  DateTime  @default(now()) @map("issue_date")
+  dueDate    DateTime  @map("due_date")
+  paidDate   DateTime? @map("paid_date")
+  status     FeeStatus @default(PENDING)
+  verifiedBy String?   @map("verified_by")
+  remarks    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([status])
+  @@map("fee_challans")
+}
+
+model SeatAllocation {
+  id               String   @id @default(cuid())
+  studentId        String   @unique @map("student_id")
+  classId          String   @map("class_id")
+  seatNumber       String   @map("seat_number")
+  notificationSent Boolean  @default(false) @map("notification_sent")
+  allocatedAt      DateTime @default(now()) @map("allocated_at")
+  createdAt        DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class   @relation(fields: [classId], references: [id])
+
+  @@index([classId])
+  @@map("seat_allocations")
+}
+
+model AdmitCard {
+  id          String   @id @default(cuid())
+  studentId   String   @unique @map("student_id")
+  examSession String   @map("exam_session")
+  pdfUrl      String?  @map("pdf_url")
+  isPrinted   Boolean  @default(false) @map("is_printed")
+  generatedAt DateTime @default(now()) @map("generated_at")
+  createdAt   DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("admit_cards")
+}
+
+model Exam {
+  id        String     @id @default(cuid())
+  name      String
+  session   String
+  startDate DateTime   @map("start_date")
+  endDate   DateTime   @map("end_date")
+  status    ExamStatus @default(UPCOMING)
+  createdAt DateTime   @default(now())
+
+  results ExamResult[]
+
+  @@map("exams")
+}
+
+model ExamResult {
+  id            String       @id @default(cuid())
+  studentId     String       @map("student_id")
+  examId        String       @map("exam_id")
+  subjectId     String       @map("subject_id")
+  obtainedMarks Float        @map("obtained_marks")
+  grade         String?
+  status        ResultStatus @default(PASS)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, examId, subjectId])
+  @@index([examId])
+  @@map("exam_results")
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  studentId String           @map("student_id")
+  date      DateTime
+  status    AttendanceStatus @default(PRESENT)
+  remarks   String?
+  createdAt DateTime         @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, date])
+  @@index([studentId])
+  @@index([date])
+  @@map("attendance")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  details   String?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String             @id @default(cuid())
+  studentId String?            @map("student_id")
+  type      String
+  subject   String
+  message   String
+  channel   NotificationChannel @default(SYSTEM)
+  status    NotificationStatus  @default(PENDING)
+  sentAt    DateTime?           @map("sent_at")
+  createdAt DateTime            @default(now())
+
+  student Student? @relation(fields: [studentId], references: [id])
+
+  @@index([studentId])
+  @@index([status])
+  @@map("notifications")
+}
