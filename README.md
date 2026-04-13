@@ -1,5 +1,9 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Database
+
+The app uses PostgreSQL database hosted on Neon (free tier). Set the `DATABASE_URL` environment variable with your Neon connection string.
+
 ## Getting Started
 
 First, run the development server:
